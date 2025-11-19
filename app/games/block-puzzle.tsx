@@ -72,7 +72,7 @@ export default function BlockPuzzle() {
   const [score, setScore] = useState(0);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [gameOver, setGameOver] = useState(false);
-  const [gridLayout, setGridLayout] = useState({ x: 0, y: 0 });
+  const gridRef = useRef<View>(null);
 
   // 生成随机方块
   const generateBlocks = (): Block[] => {
@@ -272,11 +272,9 @@ export default function BlockPuzzle() {
 
       {/* 游戏网格 */}
       <View
+        ref={gridRef}
         style={styles.gridContainer}
-        onLayout={(event) => {
-          const layout = event.nativeEvent.layout;
-          setGridLayout({ x: layout.x, y: layout.y });
-        }}
+        collapsable={false}
       >
         <View style={styles.grid}>
           {grid.map((row, rowIndex) => (
@@ -302,17 +300,9 @@ export default function BlockPuzzle() {
             <DraggableBlock
               key={block.id}
               block={block}
-              onDrop={(block, dropX, dropY) => {
-                // 计算相对于网格的位置
-                const relativeX = dropX - gridLayout.x;
-                const relativeY = dropY - gridLayout.y;
-
-                // 转换为网格坐标
-                const col = Math.floor(relativeX / (CELL_SIZE + 2));
-                const row = Math.floor(relativeY / (CELL_SIZE + 2));
-
-                return placeBlock(block, row, col);
-              }}
+              gridRef={gridRef}
+              onPlace={(block, row, col) => placeBlock(block, row, col)}
+              canPlace={(block, row, col) => canPlaceBlock(block.shape, row, col)}
               renderShape={renderShape}
             />
           ))}
@@ -325,15 +315,20 @@ export default function BlockPuzzle() {
 // 可拖拽方块组件
 function DraggableBlock({
   block,
-  onDrop,
+  gridRef,
+  onPlace,
+  canPlace,
   renderShape
 }: {
   block: Block;
-  onDrop: (block: Block, x: number, y: number) => boolean;
+  gridRef: React.RefObject<View>;
+  onPlace: (block: Block, row: number, col: number) => boolean;
+  canPlace: (block: Block, row: number, col: number) => boolean;
   renderShape: (shape: Shape, color: string, size: number) => JSX.Element;
 }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
   const [isDragging, setIsDragging] = useState(false);
 
   const panResponder = useRef(
@@ -346,36 +341,101 @@ function DraggableBlock({
           e.nativeEvent.preventDefault();
         }
         setIsDragging(true);
-        Animated.spring(scale, {
-          toValue: 1.2,
-          useNativeDriver: true,
-        }).start();
+        Animated.parallel([
+          Animated.spring(scale, {
+            toValue: 1.3,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0.85,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+        ]).start();
       },
       onPanResponderMove: Animated.event(
         [null, { dx: pan.x, dy: pan.y }],
         { useNativeDriver: false }
       ),
-      onPanResponderRelease: (_, gesture) => {
+      onPanResponderRelease: (evt, gesture) => {
         setIsDragging(false);
 
-        // 获取绝对位置
-        const dropX = gesture.moveX;
-        const dropY = gesture.moveY;
+        // 使用 measure 获取网格的准确位置
+        if (gridRef.current) {
+          gridRef.current.measure((x, y, width, height, pageX, pageY) => {
+            // 获取拖放位置相对于网格的坐标
+            const dropX = gesture.moveX;
+            const dropY = gesture.moveY;
 
-        // 尝试放置方块
-        const placed = onDrop(block, dropX, dropY);
+            // 计算相对于网格的位置（考虑内边距10px）
+            const relativeX = dropX - pageX - 10;
+            const relativeY = dropY - pageY - 10;
 
-        // 重置位置和缩放
-        Animated.parallel([
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true,
-          }),
-          Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-          }),
-        ]).start();
+            // 转换为网格坐标（每个单元格是 CELL_SIZE + 2px margin）
+            const col = Math.round(relativeX / (CELL_SIZE + 2));
+            const row = Math.round(relativeY / (CELL_SIZE + 2));
+
+            // 检查坐标是否在网格范围内
+            if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+              // 检查是否可以放置
+              if (canPlace(block, row, col)) {
+                // 成功放置，淡出方块
+                Animated.parallel([
+                  Animated.timing(opacity, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }),
+                  Animated.spring(scale, {
+                    toValue: 0.8,
+                    useNativeDriver: true,
+                  }),
+                ]).start(() => {
+                  onPlace(block, row, col);
+                });
+                return;
+              }
+            }
+
+            // 放置失败，返回原位
+            Animated.parallel([
+              Animated.spring(pan, {
+                toValue: { x: 0, y: 0 },
+                friction: 7,
+                tension: 40,
+                useNativeDriver: true,
+              }),
+              Animated.spring(scale, {
+                toValue: 1,
+                friction: 7,
+                tension: 40,
+                useNativeDriver: true,
+              }),
+              Animated.timing(opacity, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+              }),
+            ]).start();
+          });
+        } else {
+          // 如果无法获取网格位置，返回原位
+          Animated.parallel([
+            Animated.spring(pan, {
+              toValue: { x: 0, y: 0 },
+              useNativeDriver: true,
+            }),
+            Animated.spring(scale, {
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
       },
     })
   ).current;
@@ -391,7 +451,7 @@ function DraggableBlock({
             { translateY: pan.y },
             { scale: scale },
           ],
-          opacity: isDragging ? 0.9 : 1,
+          opacity: opacity,
           zIndex: isDragging ? 1000 : 1,
         },
       ]}
