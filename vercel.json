@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm run export",
+  "outputDirectory": "dist",
+  "devCommand": "npm run web",
+  "cleanUrls": true,
+  "framework": null,
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
