@@ -19,7 +19,8 @@
       "package": "com.minigamesbox.app"
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static"
     },
     "scheme": "mini-games-box",
     "plugins": [
