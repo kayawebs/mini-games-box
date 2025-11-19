@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, PanResponder, Animated } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 
 const GRID_SIZE = 10;
 const CELL_SIZE = 28;
@@ -58,14 +58,21 @@ interface Block {
   color: string;
 }
 
+interface CellData {
+  filled: boolean;
+  color: string;
+}
+
 export default function BlockPuzzle() {
-  const [grid, setGrid] = useState<number[][]>(
-    Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0))
+  const [grid, setGrid] = useState<CellData[][]>(
+    Array(GRID_SIZE).fill(null).map(() =>
+      Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
+    )
   );
   const [score, setScore] = useState(0);
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
   const [gameOver, setGameOver] = useState(false);
+  const [gridLayout, setGridLayout] = useState({ x: 0, y: 0 });
 
   // 生成随机方块
   const generateBlocks = (): Block[] => {
@@ -90,7 +97,9 @@ export default function BlockPuzzle() {
           const gridRow = row + i;
           const gridCol = col + j;
 
-          if (gridRow >= GRID_SIZE || gridCol >= GRID_SIZE || grid[gridRow][gridCol] !== 0) {
+          if (gridRow >= GRID_SIZE || gridCol >= GRID_SIZE ||
+              gridRow < 0 || gridCol < 0 ||
+              grid[gridRow][gridCol].filled) {
             return false;
           }
         }
@@ -102,18 +111,19 @@ export default function BlockPuzzle() {
   // 放置方块
   const placeBlock = (block: Block, row: number, col: number) => {
     if (!canPlaceBlock(block.shape, row, col)) {
-      Alert.alert('Invalid Move', 'Cannot place block here!');
-      setSelectedBlock(null);
-      return;
+      return false;
     }
 
-    const newGrid = grid.map(r => [...r]);
+    const newGrid = grid.map(r => r.map(c => ({ ...c })));
 
-    // 放置方块
+    // 放置方块，保留颜色
     for (let i = 0; i < block.shape.length; i++) {
       for (let j = 0; j < block.shape[i].length; j++) {
         if (block.shape[i][j] === 1) {
-          newGrid[row + i][col + j] = 1;
+          newGrid[row + i][col + j] = {
+            filled: true,
+            color: block.color,
+          };
         }
       }
     }
@@ -150,18 +160,18 @@ export default function BlockPuzzle() {
       }, 300);
     }
 
-    setSelectedBlock(null);
+    return true;
   };
 
   // 消除完整的行和列
-  const clearCompleteLines = (currentGrid: number[][]): { clearedGrid: number[][], linesCleared: number } => {
+  const clearCompleteLines = (currentGrid: CellData[][]): { clearedGrid: CellData[][], linesCleared: number } => {
     let linesCleared = 0;
-    const newGrid = currentGrid.map(r => [...r]);
+    const newGrid = currentGrid.map(r => r.map(c => ({ ...c })));
 
     // 检查行
     for (let i = 0; i < GRID_SIZE; i++) {
-      if (newGrid[i].every(cell => cell === 1)) {
-        newGrid[i] = Array(GRID_SIZE).fill(0);
+      if (newGrid[i].every(cell => cell.filled)) {
+        newGrid[i] = Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }));
         linesCleared++;
       }
     }
@@ -170,14 +180,14 @@ export default function BlockPuzzle() {
     for (let j = 0; j < GRID_SIZE; j++) {
       let isComplete = true;
       for (let i = 0; i < GRID_SIZE; i++) {
-        if (newGrid[i][j] === 0) {
+        if (!newGrid[i][j].filled) {
           isComplete = false;
           break;
         }
       }
       if (isComplete) {
         for (let i = 0; i < GRID_SIZE; i++) {
-          newGrid[i][j] = 0;
+          newGrid[i][j] = { filled: false, color: '' };
         }
         linesCleared++;
       }
@@ -187,7 +197,7 @@ export default function BlockPuzzle() {
   };
 
   // 检查是否还能放置任何方块
-  const canPlaceAnyBlock = (currentGrid: number[][], currentBlocks: Block[]): boolean => {
+  const canPlaceAnyBlock = (currentGrid: CellData[][], currentBlocks: Block[]): boolean => {
     for (const block of currentBlocks) {
       for (let i = 0; i < GRID_SIZE; i++) {
         for (let j = 0; j < GRID_SIZE; j++) {
@@ -197,7 +207,7 @@ export default function BlockPuzzle() {
               if (block.shape[bi][bj] === 1) {
                 const gridRow = i + bi;
                 const gridCol = j + bj;
-                if (gridRow >= GRID_SIZE || gridCol >= GRID_SIZE || currentGrid[gridRow][gridCol] !== 0) {
+                if (gridRow >= GRID_SIZE || gridCol >= GRID_SIZE || currentGrid[gridRow][gridCol].filled) {
                   canPlace = false;
                   break;
                 }
@@ -212,19 +222,13 @@ export default function BlockPuzzle() {
     return false;
   };
 
-  // 处理网格点击
-  const handleGridPress = (row: number, col: number) => {
-    if (selectedBlock) {
-      placeBlock(selectedBlock, row, col);
-    }
-  };
-
   // 重置游戏
   const resetGame = () => {
-    setGrid(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0)));
+    setGrid(Array(GRID_SIZE).fill(null).map(() =>
+      Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
+    ));
     setScore(0);
     setBlocks(generateBlocks());
-    setSelectedBlock(null);
     setGameOver(false);
   };
 
@@ -257,29 +261,33 @@ export default function BlockPuzzle() {
     <View style={styles.container}>
       {/* 顶部分数和重置按钮 */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.scoreContainer}>
           <Text style={styles.scoreLabel}>SCORE</Text>
           <Text style={styles.scoreText}>{score}</Text>
         </View>
         <TouchableOpacity style={styles.resetButton} onPress={resetGame}>
-          <Text style={styles.resetButtonText}>↻ New Game</Text>
+          <Text style={styles.resetButtonText}>↻</Text>
         </TouchableOpacity>
       </View>
 
       {/* 游戏网格 */}
-      <View style={styles.gridContainer}>
+      <View
+        style={styles.gridContainer}
+        onLayout={(event) => {
+          const layout = event.nativeEvent.layout;
+          setGridLayout({ x: layout.x, y: layout.y });
+        }}
+      >
         <View style={styles.grid}>
           {grid.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.row}>
               {row.map((cell, colIndex) => (
-                <TouchableOpacity
+                <View
                   key={`${rowIndex}-${colIndex}`}
                   style={[
                     styles.cell,
-                    cell === 1 && styles.cellFilled,
+                    cell.filled && { backgroundColor: cell.color },
                   ]}
-                  onPress={() => handleGridPress(rowIndex, colIndex)}
-                  disabled={!selectedBlock}
                 />
               ))}
             </View>
@@ -287,42 +295,105 @@ export default function BlockPuzzle() {
         </View>
       </View>
 
-      {/* 提示文字 */}
-      {selectedBlock && (
-        <View style={styles.hintContainer}>
-          <Text style={styles.hintText}>Tap on the grid to place the block</Text>
-        </View>
-      )}
-
       {/* 可用方块 */}
       <View style={styles.blocksContainer}>
-        <Text style={styles.blocksTitle}>Available Blocks</Text>
         <View style={styles.blocksRow}>
           {blocks.map((block) => (
-            <TouchableOpacity
+            <DraggableBlock
               key={block.id}
-              style={[
-                styles.blockWrapper,
-                selectedBlock?.id === block.id && styles.blockWrapperSelected,
-              ]}
-              onPress={() => setSelectedBlock(block)}
-            >
-              {renderShape(block.shape, block.color, 18)}
-            </TouchableOpacity>
+              block={block}
+              onDrop={(block, dropX, dropY) => {
+                // 计算相对于网格的位置
+                const relativeX = dropX - gridLayout.x;
+                const relativeY = dropY - gridLayout.y;
+
+                // 转换为网格坐标
+                const col = Math.floor(relativeX / (CELL_SIZE + 2));
+                const row = Math.floor(relativeY / (CELL_SIZE + 2));
+
+                return placeBlock(block, row, col);
+              }}
+              renderShape={renderShape}
+            />
           ))}
         </View>
       </View>
-
-      {/* 游戏说明 */}
-      <View style={styles.instructions}>
-        <Text style={styles.instructionsText}>
-          🎯 Select a block, then tap on the grid to place it
-        </Text>
-        <Text style={styles.instructionsText}>
-          ✨ Complete rows or columns to clear them
-        </Text>
-      </View>
     </View>
+  );
+}
+
+// 可拖拽方块组件
+function DraggableBlock({
+  block,
+  onDrop,
+  renderShape
+}: {
+  block: Block;
+  onDrop: (block: Block, x: number, y: number) => boolean;
+  renderShape: (shape: Shape, color: string, size: number) => JSX.Element;
+}) {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const [isDragging, setIsDragging] = useState(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        setIsDragging(true);
+        Animated.spring(scale, {
+          toValue: 1.2,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x, dy: pan.y }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (_, gesture) => {
+        setIsDragging(false);
+
+        // 获取绝对位置
+        const dropX = gesture.moveX;
+        const dropY = gesture.moveY;
+
+        // 尝试放置方块
+        const placed = onDrop(block, dropX, dropY);
+
+        // 重置位置和缩放
+        Animated.parallel([
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+          }),
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[
+        styles.blockWrapper,
+        {
+          transform: [
+            { translateX: pan.x },
+            { translateY: pan.y },
+            { scale: scale },
+          ],
+          opacity: isDragging ? 0.9 : 1,
+          zIndex: isDragging ? 1000 : 1,
+        },
+      ]}
+    >
+      {renderShape(block.shape, block.color, 18)}
+    </Animated.View>
   );
 }
 
@@ -330,40 +401,49 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
-    padding: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingHorizontal: 8,
+    marginBottom: 16,
+  },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   scoreLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#6B7280',
     letterSpacing: 1,
   },
   scoreText: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
     color: '#1F2937',
   },
   resetButton: {
     backgroundColor: '#A78BFA',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   resetButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 24,
   },
   gridContainer: {
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
-    padding: 12,
+    padding: 10,
     borderRadius: 20,
     ...Platform.select({
       ios: {
@@ -394,80 +474,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 4,
   },
-  cellFilled: {
-    backgroundColor: '#A78BFA',
-  },
-  hintContainer: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    alignSelf: 'center',
-  },
-  hintText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400E',
-    textAlign: 'center',
-  },
   blocksContainer: {
-    marginTop: 24,
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-      web: {
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-      },
-    }),
-  },
-  blocksTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6B7280',
-    marginBottom: 16,
-    textAlign: 'center',
-    letterSpacing: 0.5,
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
   },
   blocksRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+    }),
   },
   blockWrapper: {
-    padding: 16,
+    padding: 12,
     backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: 'transparent',
-    minWidth: 80,
-    minHeight: 80,
+    borderRadius: 12,
+    minWidth: 70,
+    minHeight: 70,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  blockWrapperSelected: {
-    borderColor: '#A78BFA',
-    backgroundColor: '#F5F3FF',
-  },
-  instructions: {
-    marginTop: 20,
-    gap: 8,
-  },
-  instructionsText: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500',
   },
 });
