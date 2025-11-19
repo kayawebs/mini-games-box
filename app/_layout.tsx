@@ -7,54 +7,74 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#6366f1',
+            backgroundColor: '#FFFFFF',
           },
-          headerTintColor: '#fff',
+          headerShadowVisible: false,
+          headerTintColor: '#1F2937',
           headerTitleStyle: {
-            fontWeight: 'bold',
+            fontWeight: '700',
+            fontSize: 18,
           },
         }}
       >
         <Stack.Screen
           name="index"
           options={{
-            title: 'Mini Games Box',
+            headerShown: false,
           }}
         />
         <Stack.Screen
           name="games/block-puzzle"
           options={{
             title: '1010 Block Puzzle',
+            headerStyle: {
+              backgroundColor: '#E9D5FF',
+            },
           }}
         />
         <Stack.Screen
           name="games/snake"
           options={{
             title: 'Snake',
+            headerStyle: {
+              backgroundColor: '#A7F3D0',
+            },
           }}
         />
         <Stack.Screen
           name="games/sudoku"
           options={{
             title: 'Sudoku',
+            headerStyle: {
+              backgroundColor: '#FEF3C7',
+            },
           }}
         />
         <Stack.Screen
           name="games/sokoban"
           options={{
             title: 'Sokoban',
+            headerStyle: {
+              backgroundColor: '#FECACA',
+            },
           }}
         />
         <Stack.Screen
           name="games/merge-fruits"
           options={{
             title: 'Merge Fruits',
+            headerStyle: {
+              backgroundColor: '#FBCFE8',
+            },
           }}
         />
         <Stack.Screen
           name="games/tetris"
           options={{
             title: 'Tetris',
+            headerStyle: {
+              backgroundColor: '#BFDBFE',
+            },
           }}
         />
       </Stack>

@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useRef } from 'react';
 
 interface Game {
   id: string;
@@ -8,95 +9,125 @@ interface Game {
   description: string;
   icon: string;
   route: string;
-  color: string;
+  gradient: string[];
 }
 
 const games: Game[] = [
   {
     id: 'block-puzzle',
-    title: '1010 Block Puzzle',
-    description: 'Easy but addictive puzzle game',
+    title: '1010',
+    description: 'Block Puzzle',
     icon: '🧩',
     route: '/games/block-puzzle',
-    color: '#8b5cf6',
+    gradient: ['#E9D5FF', '#DDD6FE'],
   },
   {
     id: 'snake',
     title: 'Snake',
-    description: 'Classic arcade fun',
+    description: 'Classic Game',
     icon: '🐍',
     route: '/games/snake',
-    color: '#10b981',
+    gradient: ['#A7F3D0', '#6EE7B7'],
   },
   {
     id: 'sudoku',
     title: 'Sudoku',
-    description: 'Improve your focus',
+    description: 'Number Puzzle',
     icon: '🔢',
     route: '/games/sudoku',
-    color: '#f59e0b',
+    gradient: ['#FEF3C7', '#FDE68A'],
   },
   {
     id: 'sokoban',
     title: 'Sokoban',
-    description: 'Push-box logic challenge',
+    description: 'Push Box',
     icon: '📦',
     route: '/games/sokoban',
-    color: '#ef4444',
+    gradient: ['#FECACA', '#FCA5A5'],
   },
   {
     id: 'merge-fruits',
-    title: 'Merge Fruits',
-    description: 'Satisfying merges',
+    title: 'Merge',
+    description: 'Fruits Game',
     icon: '🍉',
     route: '/games/merge-fruits',
-    color: '#ec4899',
+    gradient: ['#FBCFE8', '#F9A8D4'],
   },
   {
     id: 'tetris',
     title: 'Tetris',
-    description: 'Classic falling blocks',
+    description: 'Falling Blocks',
     icon: '🎮',
     route: '/games/tetris',
-    color: '#3b82f6',
+    gradient: ['#BFDBFE', '#93C5FD'],
   },
 ];
+
+function GameCard({ game }: { game: Game }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Link href={game.route} asChild>
+      <TouchableOpacity
+        activeOpacity={1}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.gameCardWrapper}
+      >
+        <Animated.View
+          style={[
+            styles.gameCard,
+            {
+              backgroundColor: game.gradient[0],
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.gameIcon}>{game.icon}</Text>
+          <Text style={styles.gameTitle}>{game.title}</Text>
+          <Text style={styles.gameDescription}>{game.description}</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    </Link>
+  );
+}
 
 export default function Home() {
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Choose Your Game</Text>
-        <Text style={styles.headerSubtitle}>6 Classic Games to Play</Text>
-      </View>
+      <StatusBar style="dark" />
 
       <ScrollView
-        contentContainerStyle={styles.gamesContainer}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {games.map((game) => (
-          <Link key={game.id} href={game.route} asChild>
-            <TouchableOpacity
-              style={[styles.gameCard, { borderLeftColor: game.color }]}
-              activeOpacity={0.7}
-            >
-              <View style={styles.gameContent}>
-                <Text style={styles.gameIcon}>{game.icon}</Text>
-                <View style={styles.gameInfo}>
-                  <Text style={styles.gameTitle}>{game.title}</Text>
-                  <Text style={styles.gameDescription}>{game.description}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </Link>
-        ))}
-      </ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Mini Games Box</Text>
+          <Text style={styles.headerSubtitle}>Choose your favorite game</Text>
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Tap any game to start playing!</Text>
-      </View>
+        <View style={styles.gamesGrid}>
+          {games.map((game) => (
+            <GameCard key={game.id} game={game} />
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -104,88 +135,79 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#FAFAFA',
+  },
+  scrollContent: {
+    paddingTop: Platform.OS === 'web' ? 60 : 40,
+    paddingBottom: 40,
   },
   header: {
-    backgroundColor: '#6366f1',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    ...Platform.select({
-      web: {
-        paddingTop: 40,
-      },
-    }),
+    paddingHorizontal: 24,
+    marginBottom: 32,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#e0e7ff',
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  gamesContainer: {
-    padding: 16,
-    paddingBottom: 80,
+  gamesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 16,
+    justifyContent: 'center',
+  },
+  gameCardWrapper: {
+    width: Platform.OS === 'web' ? 'calc(33.333% - 12px)' : '31%',
+    aspectRatio: 1,
+    minWidth: 140,
+    maxWidth: 200,
   },
   gameCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 16,
-    borderLeftWidth: 6,
+    flex: 1,
+    borderRadius: 24,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
       web: {
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
       },
     }),
   },
-  gameContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   gameIcon: {
-    fontSize: 48,
-    marginRight: 16,
-  },
-  gameInfo: {
-    flex: 1,
+    fontSize: 56,
+    marginBottom: 12,
   },
   gameTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
     marginBottom: 4,
   },
   gameDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  footerText: {
+    fontSize: 12,
+    color: '#6B7280',
     textAlign: 'center',
-    color: '#6b7280',
-    fontSize: 14,
+    fontWeight: '500',
   },
 });
