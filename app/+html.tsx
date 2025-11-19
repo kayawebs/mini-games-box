@@ -21,7 +21,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
           * {
             box-sizing: border-box;
           }
-          body {
+          html, body {
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -29,11 +29,19 @@ export default function Root({ children }: { children: React.ReactNode }) {
               sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            height: 100vh;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: pan-x pan-y;
+            position: fixed;
+            width: 100%;
           }
           #root {
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
           }
         `}} />
       </head>

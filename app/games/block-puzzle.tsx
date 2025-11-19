@@ -340,7 +340,11 @@ function DraggableBlock({
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
+      onPanResponderGrant: (e) => {
+        // 阻止默认行为，防止页面滚动
+        if (Platform.OS === 'web' && e.nativeEvent.preventDefault) {
+          e.nativeEvent.preventDefault();
+        }
         setIsDragging(true);
         Animated.spring(scale, {
           toValue: 1.2,
@@ -403,6 +407,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     paddingVertical: 16,
     paddingHorizontal: 12,
+    ...Platform.select({
+      web: {
+        overflow: 'hidden',
+        touchAction: 'none',
+        userSelect: 'none',
+      },
+    }),
   },
   header: {
     flexDirection: 'row',
@@ -511,5 +522,12 @@ const styles = StyleSheet.create({
     minHeight: 70,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      web: {
+        cursor: 'grab',
+        touchAction: 'none',
+        userSelect: 'none',
+      },
+    }),
   },
 });
